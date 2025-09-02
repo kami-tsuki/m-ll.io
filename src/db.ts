@@ -19,16 +19,42 @@ CREATE INDEX IF NOT EXISTS idx_leaderboard_score ON leaderboard(score DESC);`);
 
 export interface LeaderboardEntry { id: number; name: string; score: number; created_at: string; }
 
-export function addScore(name: string, score: number): number {
-  const stmt = db.prepare('INSERT INTO leaderboard (name, score) VALUES (?, ?)');
-  const info = stmt.run(name.substring(0, 24), score);
-  return Number(info.lastInsertRowid);
+const TOP_LIMIT = 10; // hard cap for history
+
+function pruneExcess() {
+  // Keep only top TOP_LIMIT by score (then earliest id for ties)
+  db.prepare(`DELETE FROM leaderboard WHERE id NOT IN (
+    SELECT id FROM leaderboard ORDER BY score DESC, id ASC LIMIT ?
+  )`).run(TOP_LIMIT);
 }
 
-export function topScores(limit = 20): LeaderboardEntry[] {
-  return db.prepare('SELECT id, name, score, created_at FROM leaderboard ORDER BY score DESC, id ASC LIMIT ?').all(limit) as LeaderboardEntry[];
+function tenthScore(): number | undefined {
+  const row = db.prepare(`SELECT score FROM leaderboard ORDER BY score DESC, id ASC LIMIT 1 OFFSET ?`).get(TOP_LIMIT - 1) as { score: number } | undefined;
+  return row?.score;
+}
+
+export function tryAddScoreLimited(name: string, score: number): { accepted: boolean; id?: number; minimumToBeat?: number } {
+  if (score <= 0) return { accepted: false, minimumToBeat: tenthScore() };
+  const currentCount = db.prepare('SELECT COUNT(*) as c FROM leaderboard').get() as { c: number };
+  const tenth = currentCount.c >= TOP_LIMIT ? tenthScore() : undefined;
+  if (tenth !== undefined && score <= tenth) {
+    return { accepted: false, minimumToBeat: tenth + 1 };
+  }
+  const stmt = db.prepare('INSERT INTO leaderboard (name, score) VALUES (?, ?)');
+  const info = stmt.run(name.substring(0, 24), score);
+  pruneExcess();
+  return { accepted: true, id: Number(info.lastInsertRowid), minimumToBeat: tenthScore() };
+}
+
+export function topScores(): LeaderboardEntry[] {
+  return db.prepare('SELECT id, name, score, created_at FROM leaderboard ORDER BY score DESC, id ASC LIMIT ?').all(TOP_LIMIT) as LeaderboardEntry[];
 }
 
 export function clearScores() { db.exec('DELETE FROM leaderboard'); }
+
+export function leaderboardMeta() {
+  const scores = topScores();
+  const tenth = scores.length === TOP_LIMIT ? scores[scores.length - 1].score : undefined;
+  return { limit: TOP_LIMIT, tenth }; }
 
 export default db;

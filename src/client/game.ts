@@ -3,8 +3,13 @@ import { TrashItem, TrashType } from './types';
 
 let engine = new GameEngine();
 let running = false;
+// Throttle renders to reduce layout cost; logic still ticks every frame.
+const RENDER_INTERVAL = 100; // ms (~10 FPS visual refresh for stability)
+let lastRender = 0;
 let currentDrag: { itemId: string; ghost: HTMLElement } | null = null;
 let highlightedBin: HTMLElement | null = null;
+let sessionId: string | null = null;
+let lastSpawnIds: Set<string> = new Set();
 
 const root = document.getElementById('game-root')!;
 const statusEl = document.getElementById('status')!;
@@ -12,46 +17,83 @@ const btnStart = document.getElementById('btn-start')! as HTMLButtonElement;
 const btnReset = document.getElementById('btn-reset')! as HTMLButtonElement;
 const leaderboardList = document.getElementById('leaderboard');
 
-btnStart.onclick = () => { if (!running) { running = true; loop(); btnStart.disabled = true; } };
+btnStart.onclick = async () => {
+  if (!running) {
+    // Obtain session from server for anti-cheat plausibility validation
+    try {
+      const res = await fetch('/api/session/start', { method: 'POST' });
+      const data = await res.json();
+      sessionId = data.sessionId || null;
+    } catch { sessionId = null; }
+    running = true; loop(); btnStart.disabled = true; }
+};
 btnReset.onclick = () => { restartGame(); };
 
 function loop() {
   if (!running) return;
   engine.tick();
-  render();
+  const now = performance.now();
+  if (now - lastRender >= RENDER_INTERVAL) {
+    render();
+    lastRender = now;
+  }
   requestAnimationFrame(loop);
 }
 
 function render() {
   const snap = engine.snapshot();
-  const truckMsg = snap.nextTruckTarget ? `${snap.nextTruckTarget} bin empties in ${(snap.nextTruckEta/1000).toFixed(1)}s` : `Truck pending`;
-  statusEl.textContent = snap.lost ? `Lost: ${snap.reason}` : `Score ${snap.score} | ${truckMsg} | Inspection in ${(snap.nextInspectionEta/1000).toFixed(1)}s`;
+  const truckMsg = snap.nextTruckTarget ? `${snap.nextTruckTarget} in ${(snap.nextTruckEta/1000).toFixed(1)}s` : `Truck pending`;
+  // Build status with progress bar
+  const inspectionMsg = `Inspect ${(snap.nextInspectionEta/1000).toFixed(1)}s`;
+  let truckProgress = '';
+  if (snap.truckIntervalTotal && snap.nextTruckTarget) {
+    const pct = 1 - (snap.nextTruckEta / snap.truckIntervalTotal);
+    truckProgress = `<div class='truck-bar h-1 w-24 bg-slate-700 rounded overflow-hidden'><div class='h-full bg-amber-400 transition-[width] duration-150' style='width:${(pct*100).toFixed(1)}%'></div></div>`;
+  }
+  statusEl.innerHTML = snap.lost ? `<span class='text-rose-400 font-semibold'>Lost:</span> ${snap.reason}` : `Score <span class='font-mono'>${snap.score}</span> | Truck ${truckMsg} ${truckProgress} | ${inspectionMsg}`;
   root.innerHTML = '';
-  // Central spawn area
-  const spawnArea = div('mb-6 p-4 bg-slate-800/60 rounded border border-slate-700 flex flex-wrap gap-2 min-h-[56px]');
-  const queueLabel = div('w-full text-xs uppercase tracking-wide text-slate-400');
-  queueLabel.textContent = `Unsorted Trash (${snap.spawnQueue.length})`;
+  // Central spawn area (fixed grid)
+  const spawnArea = div('mb-6 p-4 bg-slate-800/60 rounded border border-slate-700 flex flex-col gap-2');
+  spawnArea.setAttribute('aria-label','Unsorted trash spawn area');
+  const queueLabel = div('text-xs uppercase tracking-wide text-slate-400 flex items-center justify-between');
+  queueLabel.textContent = `Unsorted Trash (${snap.spawnQueue.length}/${engineConfig().maxSpawnQueue})`;
   spawnArea.appendChild(queueLabel);
+  const grid = div('grid grid-cols-8 gap-2');
+  const maxSpawn = engineConfig().maxSpawnQueue;
   for (const item of snap.spawnQueue) {
     const colorClass = unsortedColor(item.type);
-    const el = renderTrashItem(item, `${colorClass} hover:scale-110 transition-transform cursor-grab touch-none`);
+    const isNew = !lastSpawnIds.has(item.id);
+    const el = renderTrashItem(item, `${colorClass} hover:scale-110 transition-transform cursor-grab touch-none ${isNew ? 'spawn-pop' : ''}`);
     enableCustomDrag(el, item.id);
-    spawnArea.appendChild(el);
+    grid.appendChild(el);
   }
+  for (let i = snap.spawnQueue.length; i < maxSpawn; i++) {
+    const placeholder = div('w-5 h-5 md:w-6 md:h-6 rounded-sm bg-slate-700/30 border border-slate-600/30');
+    grid.appendChild(placeholder);
+  }
+  spawnArea.appendChild(grid);
   root.appendChild(spawnArea);
+  lastSpawnIds = new Set(snap.spawnQueue.map(i=>i.id));
 
   const binsWrap = div('grid grid-cols-2 md:grid-cols-4 gap-4');
   for (const bin of snap.bins) {
-  const binEl = div('p-2 rounded-lg shadow bg-slate-800 border flex flex-col transition-colors data-[hovered=true]:ring-4 data-[hovered=true]:ring-emerald-400');
+    const truckTarget = snap.nextTruckTarget === bin.color;
+    const binEl = div('p-2 rounded-lg shadow relative bg-slate-800/70 border flex flex-col transition-colors data-[hovered=true]:ring-4 data-[hovered=true]:ring-emerald-400');
     binEl.style.borderColor = colorForBin(bin.color);
-  binEl.dataset.bin = bin.color;
-    const title = div('font-semibold mb-2 capitalize');
-    title.textContent = `${bin.color} bin (${bin.items.length}/${bin.capacity})`;
+    if (truckTarget) binEl.classList.add('animate-pulse','ring','ring-offset-2','ring-amber-400/60');
+    binEl.dataset.bin = bin.color;
+    const title = div('font-semibold mb-2 capitalize flex items-center justify-between');
+    title.innerHTML = `<span>${bin.color} bin</span><span class='text-[10px] font-normal text-slate-400'>${bin.items.length}/${bin.capacity}</span>`;
     binEl.appendChild(title);
-    const itemsCol = div('flex-1 flex flex-col-reverse gap-1 overflow-hidden');
-    for (const item of [...bin.items].slice(-bin.capacity)) {
-  const itemEl = renderTrashItem(item, item.misSorted ? 'bg-rose-600' : 'bg-emerald-600');
+    const itemsCol = div('grid grid-cols-4 auto-rows-[1fr] gap-1 flex-1 overflow-hidden bin-grid');
+    const capped = [...bin.items].slice(-bin.capacity);
+    for (const item of capped) {
+      const itemEl = renderTrashItem(item, item.misSorted ? 'bg-rose-600' : 'bg-emerald-600');
       itemsCol.appendChild(itemEl);
+    }
+    for (let i = capped.length; i < bin.capacity; i++) { // placeholders to stabilize layout
+      const ph = div('w-5 h-5 md:w-6 md:h-6 opacity-0');
+      itemsCol.appendChild(ph);
     }
     binEl.appendChild(itemsCol);
     // drop zone
@@ -69,8 +111,8 @@ function render() {
 }
 
 function renderTrashItem(item: TrashItem, extraClasses: string) {
-  // extraClasses already contains bg color context based on state
-  const base = `w-6 h-6 rounded-sm flex items-center justify-center text-[8px] select-none cursor-grab shadow-inner ${extraClasses}`;
+  // Responsive fixed size, subtle border & depth.
+  const base = `w-5 h-5 md:w-6 md:h-6 rounded-sm flex items-center justify-center text-[8px] select-none cursor-grab shadow-inner border border-slate-900/40 ${extraClasses}`;
   const el = div(base);
   el.title = item.type + (item.misSorted ? ' (Wrong bin)' : '');
   return el;
@@ -107,6 +149,8 @@ function restartGame() {
   render();
 }
 
+function engineConfig() { return (engine as any).config as { maxSpawnQueue: number }; }
+
 async function loadLeaderboard() {
   if (!leaderboardList) return;
   try {
@@ -116,6 +160,8 @@ async function loadLeaderboard() {
     (data.scores || []).forEach((s: any, idx: number) => {
       const li = document.createElement('li');
       li.textContent = `${idx + 1}. ${s.name} – ${s.score}`;
+      li.className = 'transition-colors';
+      if (highlightScoreId && s.id === highlightScoreId) li.classList.add('highlight-score');
       leaderboardList.appendChild(li);
     });
   } catch { /* ignore */ }
@@ -123,9 +169,9 @@ async function loadLeaderboard() {
 
 async function submitScore(name: string, score: number) {
   try {
-    const res = await fetch('/api/leaderboard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, score }) });
-    const data = await res.json().catch(() => ({}));
-    if (data?.id) highlightScoreId = data.id;
+  const res = await fetch('/api/leaderboard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, score, sessionId }) });
+  const data = await res.json().catch(() => ({}));
+  if (data?.ok && data?.id) highlightScoreId = data.id; else return data;
   } catch { /* ignore */ }
 }
 
@@ -147,16 +193,40 @@ function ensureOverlay(score: number, reason: string) {
   nameInput.maxLength = 24;
   nameInput.autocomplete = 'username';
   nameInput.className = 'px-3 py-2 rounded bg-slate-800 focus:bg-slate-700 focus:outline-none focus:ring focus:ring-emerald-600/40 transition text-sm';
+  nameInput.setAttribute('aria-label','Enter your name for leaderboard');
+  const sanitizeNote = div('text-[10px] text-slate-500');
+  sanitizeNote.textContent = '';
   const submitBtn = button('Save Score', 'px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 font-semibold text-sm tracking-wide');
+  let canSubmit = true;
+  // Pre-fetch leaderboard to determine eligibility
+  fetch('/api/leaderboard').then(r=>r.json()).then(data => {
+    const scores = data.scores || [];
+    if (scores.length === 10) {
+      const tenth = scores[scores.length - 1].score;
+      if (score <= tenth) {
+        canSubmit = false;
+        submitBtn.disabled = true; submitBtn.textContent = `Need > ${tenth}`;
+      }
+    }
+  }).catch(()=>{});
   submitBtn.onclick = async () => {
-    if (submitBtn.disabled) return;
-    await submitScore(nameInput.value || 'anon', score);
+    if (submitBtn.disabled || !canSubmit) return;
+    const result = await submitScore(nameInput.value || 'anon', score);
+    if (result && !result.ok) {
+      submitBtn.textContent = result.minimumToBeat ? `Need > ${result.minimumToBeat - 1}` : 'Not in top 10';
+      return;
+    }
     await loadLeaderboard();
     submitBtn.disabled = true; submitBtn.textContent = 'Saved'; nameInput.disabled = true;
   };
   const restartBtn = button('Play Again', 'px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 active:bg-blue-700 font-semibold text-sm tracking-wide');
   restartBtn.onclick = () => { overlayBuilt = false; restartGame(); };
+  nameInput.addEventListener('input', () => {
+    const preview = clientSanitizeName(nameInput.value);
+    if (preview !== nameInput.value) sanitizeNote.textContent = `Will appear as: ${preview}`; else sanitizeNote.textContent = '';
+  });
   controls.appendChild(nameInput);
+  controls.appendChild(sanitizeNote);
   controls.appendChild(submitBtn);
   controls.appendChild(restartBtn);
   panel.appendChild(controls);
@@ -214,6 +284,25 @@ function enableCustomDrag(el: HTMLElement, itemId: string) {
     document.addEventListener('pointermove', move, { passive: true });
     document.addEventListener('pointerup', up, { once: true });
   });
+}
+
+// Client-side mirror of sanitize (simplified)
+function clientSanitizeName(input: string) {
+  let name = input.normalize('NFKC');
+  const patterns = [
+    /n[\W_]*[i1l|![\W_]*g+[\W_]*g*[\W_]*[ae4@]?/ig,
+    /f[\W_]*u[\W_]*c[\W_]*k+/ig,
+    /s[\W_]*h[\W_]*i[\W_]*t+/ig,
+    /b[\W_]*i[\W_]*t[\W_]*c[\W_]*h+/ig,
+    /c[\W_]*u[\W_]*n[\W_]*t+/ig,
+    /a[\W_]*s[\W_]*s+h*[\W_]*/ig,
+  ];
+  for (const p of patterns) name = name.replace(p,'***');
+  name = name.replace(/\*{2,}/g,'***').replace(/\s{2,}/g,' ').trim();
+  if (!name || name === '***') name = 'anon';
+  name = name.replace(/^[^A-Za-z0-9]+/, '');
+  if (!name) name = 'anon';
+  return name.slice(0,24);
 }
 
 function binAtPoint(x: number, y: number): HTMLElement | null {

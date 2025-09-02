@@ -34,6 +34,7 @@ export interface GameStateSnapshot {
   reason?: string;
   nextTruckEta: number; // ms until truck
   nextTruckTarget?: TrashType; // which bin will be emptied
+  truckIntervalTotal?: number; // total ms of current truck interval
   nextInspectionEta: number;
   nextSpawnEta: number;
   time: number;

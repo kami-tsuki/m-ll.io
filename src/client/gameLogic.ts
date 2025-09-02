@@ -14,6 +14,7 @@ export class GameEngine {
   private nextSpawnTime = 0;
   private nextTruckTime = 0;
   private nextTruckTarget: TrashType | undefined;
+  private currentTruckInterval = 0; // total duration for progress
   private nextInspectionTime = 0;
 
   constructor(config?: Partial<GameConfig>) {
@@ -51,7 +52,9 @@ export class GameEngine {
 
   private scheduleNextTruck(from: number) {
     this.nextTruckTarget = COLORS[Math.floor(Math.random() * COLORS.length)];
-    this.nextTruckTime = from + this.randRange(...this.config.truckIntervalMs);
+  const interval = this.randRange(...this.config.truckIntervalMs);
+  this.currentTruckInterval = interval;
+  this.nextTruckTime = from + interval;
   }
 
   private truckArrives() {
@@ -115,6 +118,7 @@ export class GameEngine {
       lost: this.lost,
       reason: this.reason,
       nextTruckEta: Math.max(0, this.nextTruckTime - now),
+  truckIntervalTotal: this.currentTruckInterval,
   nextInspectionEta: Math.max(0, this.nextInspectionTime - now),
       nextSpawnEta: Math.max(0, this.nextSpawnTime - now),
       time: now,
