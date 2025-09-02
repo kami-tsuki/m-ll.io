@@ -1,0 +1,104 @@
+############################
+# Node / Package Managers  #
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json.*.tmp
+
+############################
+# Runtime data / SQLite     #
+############################
+data/*.db
+data/*.db-shm
+data/*.db-wal
+!data/.gitkeep
+
+############################
+# Logs & PIDs               #
+############################
+logs/
+*.log
+*.log.*
+pids/
+*.pid
+*.seed
+*.csv
+
+############################
+# Build outputs / Bundles   #
+############################
+dist/
+build/
+public/assets/*.js
+public/assets/*.js.map
+public/assets/*.css.map
+
+############################
+# TypeScript                #
+############################
+*.tsbuildinfo
+
+############################
+# Tests / Coverage          #
+############################
+coverage/
+.nyc_output/
+
+############################
+# Env / Secrets             #
+############################
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+
+############################
+# OS / Editor               #
+############################
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+
+############################
+# Docker                    #
+############################
+docker-compose.override.yml
+.docker/
+tmp/
+*.tar
+
+############################
+# Misc caches               #
+############################
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+############################
+# Tailwind JIT              #
+############################
+*.tailwind.css
+
+############################
+# Node REPL history         #
+############################
+.node_repl_history
+
+############################
+# Optional lock backups     #
+############################
+npm-shrinkwrap.json.*
+
+############################
+# Custom                    #
+############################
+data/

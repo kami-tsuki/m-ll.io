@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Müll.IO</title>
+  <link rel="stylesheet" href="/assets/tailwind.css" />
+</head>
+<body class="min-h-screen flex flex-col">
+  <header class="p-4 bg-slate-800 flex items-center gap-4">
+    <h1 class="text-2xl font-bold">Müll.IO</h1>
+    <div id="status" class="text-sm opacity-80"></div>
+    <div class="ml-auto flex gap-4">
+      <button id="btn-start" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-sm">Start</button>
+      <button id="btn-reset" class="px-3 py-1 bg-rose-600 hover:bg-rose-500 rounded text-sm">Reset</button>
+    </div>
+  </header>
+  <main class="flex-1 p-4 grid lg:grid-cols-5 gap-6">
+    <div class="lg:col-span-4 space-y-4">
+      <div id="game-root" class="mx-auto max-w-5xl"></div>
+    </div>
+    <aside class="lg:col-span-1 space-y-4">
+      <section class="bg-slate-800/70 rounded p-3 flex flex-col h-full max-h-[60vh]">
+        <h2 class="font-semibold mb-2 text-sm flex items-center gap-2">Leaderboard <span id="lb-refresh" class="text-[10px] text-slate-500"></span></h2>
+        <ol id="leaderboard" class="text-xs space-y-1 overflow-auto pr-1 flex-1"></ol>
+        <template id="leaderboard-row">
+          <li class="flex items-center justify-between rounded px-2 py-1 bg-slate-700/40 hover:bg-slate-600/40 transition group">
+            <span class="flex items-center gap-2 truncate"><span class="rank w-5 text-right"></span><span class="name font-medium truncate"></span></span>
+            <span class="score font-mono tabular-nums"></span>
+          </li>
+        </template>
+      </section>
+    </aside>
+  </main>
+  <footer class="p-4 text-center text-xs text-slate-400">Sort the trash correctly. Random inspections can bust you. Wait for the truck to empty bins. Don’t overflow!</footer>
+  <script type="module" src="/assets/game.js"></script>
+</body>
+</html>
