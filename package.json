@@ -4,25 +4,30 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "build:server": "tsc -p tsconfig.json",
-  "build:client": "esbuild src/client/game.ts --bundle --outfile=public/assets/game.js --target=es2018",
-  "tailwind:build": "tailwindcss -i src/styles/input.css -o public/assets/tailwind.css --minify",
-  "build": "npm run build:server && npm run build:client && npm run tailwind:build",
-  "dev:server": "node --experimental-specifier-resolution=node --loader ts-node/esm src/server.ts",
+    "build:server": "tsc -p tsconfig.json",
+    "build:client": "esbuild src/client/game.ts --bundle --outfile=public/assets/game.js --target=es2018 --minify",
+    "tailwind:build": "tailwindcss -i src/styles/input.css -o public/assets/tailwind.css --minify",
+    "build": "npm run build:server && npm run build:client && npm run tailwind:build",
+    "dev:server": "node --experimental-specifier-resolution=node --loader ts-node/esm src/server.ts",
     "watch:client": "esbuild src/client/game.ts --bundle --outfile=public/assets/game.js --target=es2018 --watch",
     "tailwind:watch": "tailwindcss -i src/styles/input.css -o public/assets/tailwind.css --watch",
-  "dev": "concurrently \"npm:dev:server\" \"npm:watch:client\" \"npm:tailwind:watch\"",
-  "start": "node dist/server.js",
-  "start:prod": "node --experimental-specifier-resolution=node dist/server.js",
-  "docker:build": "docker --context kami build -t mull-io:latest .",
-  "docker:compose:build": "docker --context kami compose build",
-  "docker:up": "docker --context kami compose up -d",
-  "docker:deploy": "npm run build && docker --context kami compose up -d --build",
-  "docker:logs": "docker --context kami compose logs -f",
-  "docker:ps": "docker --context kami compose ps",
-  "docker:prune": "docker --context kami system prune -f"
+    "dev": "concurrently \"npm:dev:server\" \"npm:watch:client\" \"npm:tailwind:watch\"",
+    "start": "node dist/server.js",
+    "start:prod": "node --experimental-specifier-resolution=node dist/server.js",
+    "docker:build": "docker --context kami build -t mull-io:latest .",
+    "docker:compose:build": "docker --context kami compose build",
+    "docker:up": "docker --context kami compose up -d",
+    "docker:deploy": "npm run build && docker --context kami compose up -d --build",
+    "docker:logs": "docker --context kami compose logs -f",
+    "docker:ps": "docker --context kami compose ps",
+    "docker:prune": "docker --context kami system prune -f"
+  ,"lint": "eslint 'src/**/*.ts'"
+  ,"test": "vitest run"
+  ,"preview": "npm run build && npm run start:prod"
   },
   "dependencies": {
+  "@fastify/helmet": "^11.1.1",
+  "@fastify/rate-limit": "^9.0.0",
     "@fastify/static": "^7.0.0",
     "better-sqlite3": "^9.4.0",
     "fastify": "^4.28.0"
@@ -30,12 +35,16 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.12.12",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "autoprefixer": "^10.4.19",
     "concurrently": "^8.2.2",
     "esbuild": "^0.21.5",
+    "eslint": "^8.57.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.1"
   }
 }

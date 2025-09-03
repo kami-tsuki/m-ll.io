@@ -55,6 +55,26 @@ Start production build locally:
 npm run build && npm run start:prod  # uses dist/ (with ESM resolution tweak)
 ```
 
+### Quick Local Test Run
+```bash
+cp .env.example .env   # optional, customize vars
+npm install            # install dependencies
+npm run build          # compile server + bundle client + tailwind
+npm run start:prod     # start optimized server
+# open http://localhost:3000
+```
+
+For quick dev (auto rebuild):
+```bash
+npm run dev
+```
+
+Run tests & lint:
+```bash
+npm test
+npm run lint
+```
+
 ## 🗄 Leaderboard (SQLite)
 Files stored under `data/` (mounted to a named volume in Docker). API:
 ```

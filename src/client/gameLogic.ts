@@ -1,4 +1,5 @@
 import { BinState, GameConfig, GameStateSnapshot, InspectionResult, TrashItem, TrashType } from './types';
+import { CONFIG } from '../constants';
 
 const COLORS: TrashType[] = ['yellow', 'blue', 'brown', 'black'];
 
@@ -19,11 +20,11 @@ export class GameEngine {
 
   constructor(config?: Partial<GameConfig>) {
     this.config = {
-      binCapacity: 10,
-      baseSpawnIntervalMs: [1200, 2500],
-  truckIntervalMs: [10000, 15000],
-      inspectionIntervalMs: [6000, 14000],
-      maxSpawnQueue: 8,
+      binCapacity: CONFIG.BIN_CAPACITY,
+      baseSpawnIntervalMs: CONFIG.SPAWN_INTERVAL_MS,
+      truckIntervalMs: CONFIG.TRUCK_INTERVAL_MS,
+      inspectionIntervalMs: CONFIG.INSPECTION_INTERVAL_MS,
+      maxSpawnQueue: CONFIG.MAX_SPAWN_QUEUE,
       ...config,
     };
     this.reset();
@@ -104,7 +105,7 @@ export class GameEngine {
     const idx = this.spawnQueue.findIndex(i => i.id === itemId);
     if (idx === -1) return;
     const item = this.spawnQueue.splice(idx, 1)[0];
-    if (item.type !== bin.color) item.misSorted = true; else this.score += 10;
+  if (item.type !== bin.color) item.misSorted = true; else this.score += CONFIG.SCORE_PER_ITEM;
     bin.items.push(item);
   }
 

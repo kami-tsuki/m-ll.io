@@ -27,6 +27,10 @@ RUN mkdir -p data
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
 
+# Drop privileges
+RUN chown -R node:node /app && chmod -R 755 /app
+USER node
+
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 

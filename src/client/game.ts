@@ -1,4 +1,4 @@
-import { GameEngine, COLORS } from './gameLogic';
+import { GameEngine } from './gameLogic';
 import { TrashItem, TrashType } from './types';
 
 let engine = new GameEngine();
@@ -15,6 +15,21 @@ const root = document.getElementById('game-root')!;
 const statusEl = document.getElementById('status')!;
 const btnStart = document.getElementById('btn-start')! as HTMLButtonElement;
 const btnReset = document.getElementById('btn-reset')! as HTMLButtonElement;
+// Keyboard controls: 1-4 to drop first unsorted item into corresponding bin
+window.addEventListener('keydown', (e) => {
+  if (!running) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  const map: Record<string, TrashType> = { '1': 'yellow', '2': 'blue', '3': 'brown', '4': 'black' };
+  const color = map[e.key];
+  if (color) {
+    const snap = engine.snapshot();
+    const first = snap.spawnQueue[0];
+    if (first) {
+      engine.moveFromSpawnToBin(color, first.id);
+      render();
+    }
+  }
+});
 const leaderboardList = document.getElementById('leaderboard');
 
 btnStart.onclick = async () => {
@@ -149,15 +164,20 @@ function restartGame() {
   render();
 }
 
-function engineConfig() { return (engine as any).config as { maxSpawnQueue: number }; }
+interface InternalEngine { config: { maxSpawnQueue: number } }
+function engineConfig() {
+  return (engine as unknown as InternalEngine).config;
+}
 
+interface LeaderboardEntry { id: number; name: string; score: number; }
+interface LeaderboardResponse { scores: LeaderboardEntry[] }
 async function loadLeaderboard() {
   if (!leaderboardList) return;
   try {
     const res = await fetch('/api/leaderboard');
-    const data = await res.json();
+  const data: LeaderboardResponse = await res.json();
     leaderboardList.innerHTML = '';
-    (data.scores || []).forEach((s: any, idx: number) => {
+  (data.scores || []).forEach((s, idx: number) => {
       const li = document.createElement('li');
       li.textContent = `${idx + 1}. ${s.name} – ${s.score}`;
       li.className = 'transition-colors';
@@ -167,10 +187,11 @@ async function loadLeaderboard() {
   } catch { /* ignore */ }
 }
 
+interface SubmitResult { ok?: boolean; id?: number; minimumToBeat?: number; reason?: string }
 async function submitScore(name: string, score: number) {
   try {
   const res = await fetch('/api/leaderboard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, score, sessionId }) });
-  const data = await res.json().catch(() => ({}));
+  const data: SubmitResult = await res.json().catch(() => ({} as SubmitResult));
   if (data?.ok && data?.id) highlightScoreId = data.id; else return data;
   } catch { /* ignore */ }
 }
